@@ -1,0 +1,80 @@
+This script allows you to backup Virtual Machines managed by libvirt.
+It has only be tested with KVM based VM
+This script will dump (or mount as a set of chunks):
+ * each block devices
+ * optionnally the memory (if --state flag is given)
+ * the XML description of the VM
+
+These files are writen in a temporary backup dir. Everything is done
+in order to minimize donwtime of the guest. For example, it takes
+a snapshot of the block devices (if backed with LVM) so the guest is
+just paused for a couple of seconds. Once this is done, the guest is
+resumed, and the script starts to dump the snapshot.
+
+Once a backup is finished, you'll have several files in the backup
+directory. Let's take an example with a VM called my_vm which has
+two virtual disks: hda and hdb. You have passed the --state flag:
+ * my_vm.lock: lock file to prevent another backup to run at the same time
+ * my_vm.xml: this file is the XML description of the VM (for libvirt configuraiton)
+ * my_vm_hda.img: this file is an image of the hda drive of the guest
+ * my_vm_hdb.img: this file is an image of the hdb drive of the guest
+ * my_vm.state: this is a dump of the memory (result of virsh save my_vm my_vm.state)
+
+This script was made to be ran with BackupPC pre/post commands.
+In pre-backup, you dump everything (or mount as a set of chunks), then, backuppc backups,
+compress, pools etc... the dumped file. Eventually, when the backup is finished
+The script is called with the --action=cleanup flag, which cleanups everything.
+(remove the temporary files, umount the fuse mount points if any etc.)
+
+Some examples:
+
+Backup the VM named mail01 and devsrv. Also dump the memory.
+Exclude any virtual disk attached as vdb or hdb and on the fly
+compress the dumped disks (uses gzip by default)
+
+virt-backup --dump --vm=mail01,devsrv --state --exclude=vdb,hdb --compress
+
+
+Remove all the files related to mail01 VM in the backup directory
+
+virt-backup --cleanup --vm=mail01
+
+
+Backup devsrv, use 10G for LVM snapshots (if available), do not dump the memory
+(the guest will just be paused while we take a snapshot)
+Keep the lock file present after the dump
+
+virt-backup --dump --vm=devsrv --snapsize=10G --keep-lock
+
+
+Backup devsrv, and disable LVM snapshots
+
+virt-backup --dump --vm=devsrv --no-snapshot
+
+
+Backup mail01, and enable debug (verbose output)
+
+virt-backup --dump --vm=mail01 --debug
+
+
+Backup winprd, shutdown before taking the backup
+Dont wait more than 5 minutes for the shutdown to complete
+restart the VM once the backup is finished
+
+virt-backup --action=dump --shutdown --shutdown-timeout=300 --vm=winprd
+
+
+Don't dump, but mount as a set of chunks the disks of vm mail01
+
+virt-backup --action=chunkmount --vm=mail01
+
+The idea here is to expose the big blocks/files which represent the VM disks
+as small chunks (default is 256kB), then, you can use your favorite backup script/software
+to backup /var/lib/libvirt/backup/vm_name/ where you want
+This lets you create incremential backups of VM disks, which can save
+a lot of space, a lot of bandwidth, and will also be much more efficient
+with rsync based backup scripts (because rsync doesn't handle huge files very well
+but if very efficient with a lot of small files)
+The cleanup routine (--cleanup or --action=cleanup) will unmount all
+the chunkfs mount points
+
