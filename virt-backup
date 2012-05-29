@@ -108,7 +108,7 @@ GetOptions(
     "exclude=s"          => \@excludes,
     "blocksize=s"        => \$opts{blocksize},
     "shutdown"           => \$opts{shutdown},
-    "shutdown-timeout=s" => \$opts{shutdown-timeout},
+    "shutdown-timeout=s" => \$opts{shutdowntimeout},
     "help"               => \$opts{help}
 );
 
@@ -564,9 +564,9 @@ sub shutdown_vm(){
         print "$vm is running, shutting down\n" if ($opts{debug});
         $dom->shutdown();
         my $shutdown_counter = 0;
-        # Wait $opts{shutdown-timeout} seconds for vm to shutdown
+        # Wait $opts{shutdowntimeout} seconds for vm to shutdown
         while ($dom->get_info->{state} != Sys::Virt::Domain::STATE_SHUTOFF){
-            if ($shutdown_counter >= $opts{shutdown-timeout}){
+            if ($shutdown_counter >= $opts{shutdowntimeout}){
                 die "Waited $opts{shutdown_time} seconds for $vm to shutdown.  Shutdown Failed\n";
             }
             $shutdown_counter++;

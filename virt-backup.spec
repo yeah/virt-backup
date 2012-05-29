@@ -2,7 +2,7 @@
 Summary: backup script for libvirt managed VM
 Name: virt-backup
 Version: 0.1.0
-Release: 1.beta0
+Release: 1.beta1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
 
