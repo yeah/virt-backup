@@ -62,7 +62,7 @@ getent passwd qemu >/dev/null || \
 
 %files
 %defattr(-,root,root,-)
-%doc README
+%doc README CHANGELOG.git
 %{_bindir}/*
 %dir %attr(0770, qemu, kvm) %{_localstatedir}/lib/libvirt/backup
 
