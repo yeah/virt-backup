@@ -71,9 +71,9 @@ $opts{connect} = "qemu:///system";
 # Compression used with the dump action (the compression is done on the fly)
 $opts{compress} = 'none';
 # lvcreate path
-$opts{lvcreate} = '/usr/sbin/lvcreate -c 512';
+$opts{lvcreate} = 'lvcreate -c 512';
 # lvremove path
-$opts{lvremove} = '/usr/sbin/lvremove';
+$opts{lvremove} = 'lvremove';
 # chunkfs path
 $opts{chunkfs} = '/usr/bin/chunkfs';
 # Size of chunks to use with chunkfs or or blocks with dd in bytes (default to 256kB)
