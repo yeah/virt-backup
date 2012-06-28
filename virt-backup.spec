@@ -1,7 +1,7 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.1.0
+Version: 0.1.1
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
@@ -67,6 +67,9 @@ getent passwd qemu >/dev/null || \
 %dir %attr(0770, qemu, kvm) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Thu Jun 28 2012 Daniel B. <daniel@firewall-services.com> - 0.1.1-1
+- Don't use absolute path for lvcreate and lvremove
+
 * Sun Jun 17 2012 Daniel B. <daniel@firewall-services.com> - 0.1.0-1
 - Move virt-backup to it's own RPM (and GIT repo)
 
