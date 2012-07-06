@@ -454,7 +454,7 @@ sub run_cleanup{
 sub usage{
     print "usage:\n$0 --action=[dump|cleanup|chunkmount|unlock] --vm=vm1[,vm2,vm3] [--debug] [--exclude=hda,hdb] [--compress] ".
         "[--state] [--shutdown] [--shutdown-timeout] [--no-snapshot] [--snapsize=<size>] [--backupdir=/path/to/dir] [--connect=<URI>] ".
-        "[--keep-lock] [--bs=<block size>]\n" .
+        "[--keep-lock] [--blocksize=<block size>]\n" .
     "\n\n" .
     "\t--action: What action the script will run. Valid actions are\n\n" .
     "\t\t- dump: Run the dump routine (dump disk image to temp dir, pausing the VM if needed). It's the default action\n" .
@@ -493,7 +493,8 @@ sub usage{
     "\t--shutdown: Shutdown the vm instead of suspending it. This uses ACPI to send the shutdown signal. " .
         "You should make sure your guest react to ACPI signals. This flag is mutual exclusive with --state\n\n" .
     "\t--shutdown-timeout=<seconds>: How long to wait, in seconds, for the vm to shutdown. If the VM isn't stopped " .
-        "after that amount of time (in seconds), the backup will abort. The default timeout is 300 seconds";
+        "after that amount of time (in seconds), the backup will abort. The default timeout is 300 seconds\n\n" .
+    "\t--blocksize=<blocksize>: Specify block size in bytes (for dd and chunkfs). Default to 262144 (256kB).\n";
 }
  
 # Save a running VM, if it's running
