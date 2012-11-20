@@ -39,6 +39,10 @@ etc...
 
 %{__rm} -rf $RPM_BUILD_ROOT
 
+%if %{?fedora}%{?rhel} <= 5
+sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin/lvremove|g" virt-backup
+%endif
+
 # Install backup script
 %{__mkdir_p} $RPM_BUILD_ROOT%{_bindir}/
 %{__install} -m 0755 virt-backup $RPM_BUILD_ROOT%{_bindir}/
