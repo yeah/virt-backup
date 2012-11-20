@@ -336,6 +336,8 @@ sub prepare_backup{
         print "\nWe can run a live backup\n" if ($opts{debug});
         if ($opts{wasrunning}){
             if ($opts{state}){
+                # Prevent a race condition in libvirt
+                sleep(1);
                 restore_vm();
             }
             elsif ($opts{shutdown}){
@@ -365,6 +367,7 @@ sub run_dump{
             die "Couldn't dump the block device/file $source to $dest\n";
         }
         # Remove the snapshot if the current dumped disk is a snapshot
+        sleep(1);
         destroy_snapshot($source) if ($disk->{type} eq 'snapshot');
     }
  
@@ -432,14 +435,19 @@ sub run_cleanup{
 
     $cnt = unlink <$backupdir/*>;
     if (open SNAPLIST, "<$backupdir.meta/snapshots"){
+        sleep(1);
         foreach (<SNAPLIST>){
             # Destroy snapshot listed here is they exists
             # and only if the end with _ and 10 digits
             chomp;
             if ((-e $_) && ($_ =~ m/_\d{10}$/)){
                print "Found $_ in snapshot list file, will try to remove it\n" if ($opts{debug});
-               destroy_snapshot($_);
-               $snap++;
+               if (destroy_snapshot($_)){
+                   $snap++;
+               }
+               else{
+                   print "An error occured while removing $_\n" if ($opts{debug});
+               }
             }
         }
         close SNAPLIST;
