@@ -23,18 +23,6 @@
 
 # See README for documentation and examples
 
-
-### CHANGES
-# * 12/01/2012
-# - Add shutdown and shutdown-timeout options (patch from Asher Schaffer)
-#
-# * 31/07/2011
-# - Add new option to mount images as chunked files using chunkfs
-# - Use 512k chunk size for LVM snapshots which should reduce performance penalty during backups
-#
-# * 26/03/2010
-# - Initial packaged version
-
 use XML::Simple;
 use Sys::Virt;
 use Getopt::Long;
