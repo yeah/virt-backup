@@ -598,9 +598,9 @@ sub create_snapshot{
     my ($blk,$suffix) = @_;
     my $ret = 0;
     print "Running: $opts{lvcreate} -p r -s -n " . $blk . $suffix .
-        " -L $opts{snapsize} $blk > /dev/null 2>&1\n" if $opts{debug};
+        " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null\n" if $opts{debug};
     if ( system("$opts{lvcreate} -p r -s -n " . $blk . $suffix .
-        " -L $opts{snapsize} $blk > /dev/null 2>&1") == 0 ) {
+        " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null") == 0 ) {
         $ret = 1;
         open SNAPLIST, ">>$backupdir.meta/snapshots" or die "Error, couldn't open snapshot list file\n";
         print SNAPLIST $blk.$suffix ."\n";
@@ -614,7 +614,7 @@ sub destroy_snapshot{
     my $ret = 0;
     my ($snap) = @_;
     print "Removing snapshot $snap\n" if $opts{debug};
-    if (system ("$opts{lvremove} -f $snap > /dev/null 2>&1") == 0 ){
+    if (system ("$opts{lvremove} -f $snap > /dev/null 2>&1 < /dev/null") == 0 ){
         $ret = 1;
     }
     return $ret;
