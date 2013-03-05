@@ -1,8 +1,8 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.1.1
-Release: 1
+Version: 0.1.2
+Release: 1.beta0
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
 
@@ -71,6 +71,11 @@ getent passwd qemu >/dev/null || \
 %dir %attr(0770, qemu, kvm) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Tue Nov 20 2012 Daniel B. <daniel@firewall-services.com> - 0.1.2-1
+- Fix some spacing issue
+- re-add full path to lvcreate and lvremove
+- sleep to prevent race conditions
+
 * Thu Jun 28 2012 Daniel B. <daniel@firewall-services.com> - 0.1.1-1
 - Don't use absolute path for lvcreate and lvremove
 
