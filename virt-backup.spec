@@ -71,7 +71,7 @@ getent passwd qemu >/dev/null || \
 %dir %attr(0770, qemu, kvm) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
-* Tue MMar 5 2013 Daniel B. <daniel@firewall-services.com> - 0.1.3-1
+* Tue Mar 5 2013 Daniel B. <daniel@firewall-services.com> - 0.1.3-1
 - Send /dev/null to lvm commands stdin
 
 * Tue Nov 20 2012 Daniel B. <daniel@firewall-services.com> - 0.1.2-1
