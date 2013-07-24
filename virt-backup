@@ -26,6 +26,7 @@
 use XML::Simple;
 use Sys::Virt;
 use Getopt::Long;
+use File::Copy;
 
 # Set umask
 umask(022);
@@ -54,13 +55,15 @@ $opts{keeplock} = 0;
 # Should we try to create LVM snapshots during the dump ?
 $opts{snapshot} = 1;
 # Libvirt URI to connect to
-$opts{connect} = "qemu:///system";
+@connect = ();
 # Compression used with the dump action (the compression is done on the fly)
 $opts{compress} = 'none';
 # lvcreate path
 $opts{lvcreate} = '/sbin/lvcreate -c 512';
 # lvremove path
 $opts{lvremove} = '/sbin/lvremove';
+# Override path to the LVM backend
+$opts{lvm} = '';
 # chunkfs path
 $opts{chunkfs} = '/usr/bin/chunkfs';
 # Size of chunks to use with chunkfs or or blocks with dd in bytes (default to 256kB)
@@ -84,12 +87,13 @@ GetOptions(
     "state"              => \$opts{state},
     "snapsize=s"         => \$opts{snapsize},
     "backupdir=s"        => \$opts{backupdir},
+    "lvm=s"              => \$opts{lvm},
     "vm=s"               => \@vms,
     "action=s"           => \$opts{action},
     "cleanup"            => \$opts{cleanup},
     "dump"               => \$opts{dump},
     "unlock"             => \$opts{unlock},
-    "connect=s"          => \$opts{connect},
+    "connect=s"          => \@connect,
     "snapshot!"          => \$opts{snapshot},
     "compress:s"         => \$opts{compress},
     "exclude=s"          => \@excludes,
@@ -138,6 +142,10 @@ else{
 # Allow comma separated multi-argument
 @vms = split(/,/,join(',',@vms));
 @excludes = split(/,/,join(',',@excludes));
+@connect = split(/,/,join(',',@connect));
+
+# Define a default libvirt URI
+$connect[0] = "qemu:///system" unless (defined $connect[0]);
 
 # Backward compatible with --dump --cleanup --unlock
 $opts{action} = 'dump' if ($opts{dump});
@@ -163,18 +171,40 @@ if (! -d $opts{backupdir} ){
 }
 
 # Connect to libvirt
-print "\n\nConnecting to libvirt daemon using $opts{connect} as URI\n" if ($opts{debug});
-our $libvirt = Sys::Virt->new( uri => $opts{connect} ) || 
-    die "Error connecting to libvirt on URI: $opts{connect}";
- 
+print "\n\nConnecting to libvirt daemon using $connect[0] as URI\n" if ($opts{debug});
+$libvirt1 = Sys::Virt->new( uri => $connect[0] ) || 
+    die "Error connecting to libvirt on URI: $connect[0]";
+
+if (defined $connect[1]){
+    $libvirt2 = Sys::Virt->new( uri => $connect[1] ) ||
+        die "Error connecting to libvirt on URI: $connect[1]";
+}
+
+our $libvirt = $libvirt1;
+
 print "\n" if ($opts{debug});
  
 foreach our $vm (@vms){
     # Create a new object representing the VM
     print "Checking $vm status\n\n" if ($opts{debug});
-    our $dom = $libvirt->get_domain_by_name($vm) ||
+    our $dom = $libvirt1->get_domain_by_name($vm) ||
         die "Error opening $vm object";
+
+    # If we've passed two connect URI, and our VM is not
+    # running on the first one, check on the second one
+    if (!$dom->is_active && defined $connect[1]){
+        $dom = $libvirt2->get_domain_by_name($vm) ||
+            die "Error opening $vm object";
+
+        if ($dom->is_active()){
+            $libvirt = $libvirt2;
+        }
+        else{
+            $dom = $libvirt1->get_domain_by_name($vm);
+        }
+    }
     our $backupdir = $opts{backupdir}.'/'.$vm;
+    our $time = "_".time();
     if ($opts{action} eq 'cleanup'){
         print "Running cleanup routine for $vm\n\n" if ($opts{debug});
         run_cleanup();
@@ -187,12 +217,14 @@ foreach our $vm (@vms){
         print "Running dump routine for $vm\n\n" if ($opts{debug});
         mkdir $backupdir || die $!;
         mkdir $backupdir . '.meta' || die $!;
+        mkdir $backupdir . '.mount' || die $!;
         run_dump();
     }
     elsif ($opts{action} eq 'chunkmount'){
         print "Running chunkmount routine for $vm\n\n" if ($opts{debug});
         mkdir $backupdir || die $!;
         mkdir $backupdir . '.meta' || die $!;
+        mkdir $backupdir . '.mount' || die $!;
         run_chunkmount();
     }
     else {
@@ -270,7 +302,6 @@ sub prepare_backup{
             # If it's a block device
             if ($disk->{type} eq 'block'){
 
-                my $time = "_".time();
                 # Try to snapshot the source if snapshot is enabled
                 if ( ($opts{snapshot}) && (create_snapshot($source,$time)) ){
                     print "$source seems to be a valid logical volume (LVM), a snapshot has been taken as " .
@@ -292,8 +323,42 @@ sub prepare_backup{
                 }
             }
             elsif ($disk->{type} eq 'file'){
-                $opts{livebackup} = 0;
-                push (@disks, {source => $source, target => $target, type => 'file'});
+                # Try to find the mount point, and the backing device
+                my @df = `df -P $source`;
+                my ($dev,undef,undef,undef,undef,$mount) = split /\s+/, $df[1];
+                # The backing device can be detected, but can also be overwritten with --lvm=/dev/data/vm
+                # This can be usefull for example when you use GlusterFS. Df will return something like
+                # localhost:/vmstore as the device, but this GlusterFS volume might be backed by an LVM
+                # volume, in which case, you can pass it as an argument to the script
+                my $lvm = ($opts{lvm} ne '' && -e "$opts{lvm}") ? $opts{lvm} : $dev;
+                # Try to snapshot this device
+                if ( $opts{snapshot} ){
+                    # Maybe the LVM is already snapshoted and mounted for a previous disk ?
+                    my $is_mounted = 0;
+                    if (open MOUNT, "<$backupdir.meta/mount"){
+                        while (<MOUNT>){
+                            $is_mounted = 1 if ($_ eq $lvm);
+                        }
+                        close MOUNT;
+                    }
+                    if (!$is_mounted && create_snapshot($lvm,$time)){
+                        print "$lvm seems to be a valid logical volume (LVM), a snapshot has been taken as " .
+                            $lvm . $time ."\n" if ($opts{debug});
+                        my $snap = $lvm.$time;
+                        # -o nouuid is needed if XFS is used
+                        system("/bin/mount -o nouuid $snap $backupdir.mount");
+                        open MOUNT, ">$backupdir.meta/mount";
+                        print MOUNT $lvm;
+                        close MOUNT;
+                    }
+                    my $file = $source;
+                    $file =~ s|$mount|$backupdir.mount|;
+                    push (@disks, {source => $file, target => $target, type => 'file'});
+                }
+                else {
+                    $opts{livebackup} = 0;
+                    push (@disks, {source => $source, target => $target, type => 'file'});
+                }
             }
             print "Adding $source to the list of disks to be backed up\n" if ($opts{debug});
         }
@@ -405,12 +470,26 @@ sub run_cleanup{
     }
 
     if (open MOUNTS, "</proc/mounts"){
-        foreach (<MOUNTS>){
+        my @mounts = <MOUNTS>;
+        # We first need to umount chunkfs mount points
+        foreach (@mounts){
             my @info = split(/\s+/, $_);
             next unless ($info[0] eq "chunkfs-$vm");
             print "Found chunkfs mount point: $info[1]\n" if ($opts{debug});
             my $mp = $info[1];
-            print "Unmounting chunkfs mount point $mp\n\n" if ($opts{debug});
+            print "Unmounting $mp\n\n" if ($opts{debug});
+            die "Couldn't unmount $mp\n" unless (
+                system("/bin/umount $mp 2>/dev/null") == 0
+            );
+            rmdir $mp || die $!;
+        }
+        # Now, standard filesystems
+        foreach (@mounts){
+            my @info = split(/\s+/, $_);
+            next unless ($info[1] eq "$backupdir.mount");
+            print "Found temporary mount point: $info[1]\n" if ($opts{debug});
+            my $mp = $info[1];
+            print "Unmounting $mp\n\n" if ($opts{debug});
             die "Couldn't unmount $mp\n" unless (
                 system("/bin/umount $mp 2>/dev/null") == 0
             );
@@ -441,6 +520,7 @@ sub run_cleanup{
     $meta = unlink <$backupdir.meta/*>;
     rmdir "$backupdir/";
     rmdir "$backupdir.meta";
+    rmdir "$backupdir.mount";
     print "$cnt file(s) removed\n$snap LVM snapshots removed\n$meta metadata files removed\n\n" if $opts{debug};
 }
 
@@ -495,7 +575,20 @@ sub usage{
 sub save_vm_state{
     if ($dom->is_active()){
         print "$vm is running, saving state....\n" if ($opts{debug});
-        $dom->save("$backupdir/$vm.state");
+        # if connect[1] is defined, you've passed several connection URI
+        # This means that you're running a dual hypervisor cluster
+        # And depending on the one running the current VM
+        # $backupdir might not be available
+        # whereas /var/lib/libvirt/qemu/save/ might
+        # if you've mounted here a shared file system
+        # (NFS, GlusterFS, GFS2, OCFS etc...)
+        if (defined $connect[1]){
+            $dom->managed_save();
+            move "/var/lib/libvirt/qemu/save/$vm.save", "$backupdir/$vm.state";
+        }
+        else{
+            $dom->save("$backupdir/$vm.state");
+        }
         print "$vm state saved as $backupdir/$vm.state\n" if ($opts{debug});
     }
     else{
@@ -507,16 +600,29 @@ sub save_vm_state{
 sub restore_vm{
     if (! $dom->is_active()){
         if (-e "$backupdir/$vm.state"){
-            print "\nTrying to restore $vm from $backupdir/$vm.state\n" if ($opts{debug});
-            $libvirt->restore_domain("$backupdir/$vm.state");
-            print "Waiting for restoration to complete\n" if ($opts{debug});
-            my $i = 0;
-            while ((!$dom->is_active()) && ($i < 120)){
-                sleep(5);
-                $i = $i+5;
+            # if connect[1] is defined, you've passed several connection URI
+            # This means that you're running a dual hypervisor cluster
+            # And depending on the one running the current VM
+            # $backupdir might not be available
+            # whereas /var/lib/libvirt/qemu/save/ might
+            # if you've mounted here a shared file system
+            # (NFS, GlusterFS, GFS2, OCFS etc...)
+            if (defined $connect[1]){
+                copy "$backupdir/$vm.state", "/var/lib/libvirt/qemu/save/$vm.save";
+                start_vm();
             }
-            print "Timeout while trying to restore $vm, aborting\n" 
-                if (($i > 120) && ($opts{debug}));
+            else{
+                print "\nTrying to restore $vm from $backupdir/$vm.state\n" if ($opts{debug});
+                $libvirt->restore_domain("$backupdir/$vm.state");
+                print "Waiting for restoration to complete\n" if ($opts{debug});
+                my $i = 0;
+                while ((!$dom->is_active()) && ($i < 120)){
+                    sleep(5);
+                    $i = $i+5;
+                }
+                print "Timeout while trying to restore $vm, aborting\n" 
+                    if (($i > 120) && ($opts{debug}));
+            }
         }
         else{
             print "\nRestoration impossible, $backupdir/$vm.state is missing\n" if ($opts{debug});
@@ -597,9 +703,9 @@ sub save_xml{
 sub create_snapshot{
     my ($blk,$suffix) = @_;
     my $ret = 0;
-    print "Running: $opts{lvcreate} -p r -s -n " . $blk . $suffix .
+    print "Running: $opts{lvcreate} -s -n " . $blk . $suffix .
         " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null\n" if $opts{debug};
-    if ( system("$opts{lvcreate} -p r -s -n " . $blk . $suffix .
+    if ( system("$opts{lvcreate} -s -n " . $blk . $suffix .
         " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null") == 0 ) {
         $ret = 1;
         open SNAPLIST, ">>$backupdir.meta/snapshots" or die "Error, couldn't open snapshot list file\n";
