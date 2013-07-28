@@ -341,6 +341,7 @@ sub prepare_backup{
                         }
                         close MOUNT;
                     }
+                    die "Couldn't call sync before taking the snapshot: $!\n" unless (system ("/bin/sync") == 0);
                     if (!$is_mounted && create_snapshot($lvm,$time)){
                         print "$lvm seems to be a valid logical volume (LVM), a snapshot has been taken as " .
                             $lvm . $time ."\n" if ($opts{debug});
