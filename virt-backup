@@ -331,6 +331,9 @@ sub prepare_backup{
                 # localhost:/vmstore as the device, but this GlusterFS volume might be backed by an LVM
                 # volume, in which case, you can pass it as an argument to the script
                 my $lvm = ($opts{lvm} ne '' && -e "$opts{lvm}") ? $opts{lvm} : $dev;
+                my $mp = $lvm;
+                $mp =~ s!/!_!g;
+                $mp = "$backupdir.mount/$mp";
                 # Try to snapshot this device
                 if ( $opts{snapshot} ){
                     # Maybe the LVM is already snapshoted and mounted for a previous disk ?
@@ -346,14 +349,15 @@ sub prepare_backup{
                         print "$lvm seems to be a valid logical volume (LVM), a snapshot has been taken as " .
                             $lvm . $time ."\n" if ($opts{debug});
                         my $snap = $lvm.$time;
+                        mkdir $mp || die "Couldn't create $mp: $!";
                         # -o nouuid is needed if XFS is used
-                        system("/bin/mount -o nouuid $snap $backupdir.mount");
+                        system("/bin/mount -o nouuid $snap $mp");
                         open MOUNT, ">$backupdir.meta/mount";
                         print MOUNT $lvm;
                         close MOUNT;
                     }
                     my $file = $source;
-                    $file =~ s|$mount|$backupdir.mount|;
+                    $file =~ s|$mount|$mp|;
                     push (@disks, {source => $file, target => $target, type => 'file'});
                 }
                 else {
@@ -487,7 +491,7 @@ sub run_cleanup{
         # Now, standard filesystems
         foreach (@mounts){
             my @info = split(/\s+/, $_);
-            next unless ($info[1] eq "$backupdir.mount");
+            next unless ($info[1] =~ /^$backupdir.mount/);
             print "Found temporary mount point: $info[1]\n" if ($opts{debug});
             my $mp = $info[1];
             print "Unmounting $mp\n\n" if ($opts{debug});
