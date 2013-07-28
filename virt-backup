@@ -389,7 +389,7 @@ sub prepare_backup{
         elsif($opts{action} eq 'chunkmount'){
             print "\n\nThe following disks will be mounted as chunks:\n\n";
             foreach $disk (@disks){
-                print "Source: $disk->{source}\tDest: $backupdir/$vm" . '_' . $disk->{target};
+                print "Source: $disk->{source}\tDest: $backupdir/$vm" . '_' . $disk->{target} . "\n";
             }
         }
     }
@@ -432,7 +432,7 @@ sub run_dump{
             $cmd .= " -c" if ($opts{compress} ne 'none');
             $cmd .= " $source $dest 2>/dev/null 2>&1";
             print "Ignoring compression format, lets use the internal qcow2 compression feature instead\n"
-                if ($opts{debug} && $opts{compress} ne '')
+                if ($opts{debug} && $opts{compress} ne 'none')
         }
         else {
             print "\nStarting dump of $source to $dest\n\n" if ($opts{debug})
@@ -507,6 +507,8 @@ sub run_cleanup{
             );
             rmdir $mp || die $!;
         }
+        # Just wait a second to be sure all fuse resources has been released
+        sleep(1);
         # Now, standard filesystems
         foreach (@mounts){
             my @info = split(/\s+/, $_);
