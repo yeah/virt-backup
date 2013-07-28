@@ -213,7 +213,7 @@ foreach our $vm (@vms){
         print "Unlocking $vm\n\n" if ($opts{debug});
         unlock_vm();
     }
-    elsif ($opts{action} eq 'dump'){
+    elsif ($opts{action} eq 'dump' || $opts{action} eq 'convert'){
         print "Running dump routine for $vm\n\n" if ($opts{debug});
         mkdir $backupdir || die $!;
         mkdir $backupdir . '.meta' || die $!;
@@ -378,6 +378,14 @@ sub prepare_backup{
                     ".img$opts{compext}\n";
             }
         }
+        elsif ($opts{action} eq 'convert'){
+            $opts{compext} = ".qcow2";
+            print "\n\nThe following disks will be converted to qcow2 format:\n\n";
+            foreach $disk (@disks){
+                print "Source: $disk->{source}\tDest: $backupdir/$vm" . '_' . $disk->{target} .
+                    ".img$opts{compext}\n";
+            }
+        }
         elsif($opts{action} eq 'chunkmount'){
             print "\n\nThe following disks will be mounted as chunks:\n\n";
             foreach $disk (@disks){
@@ -417,10 +425,21 @@ sub run_dump{
         my $source = $disk->{source};
         my $dest = "$backupdir/$vm" . '_' . $disk->{target} . ".img$opts{compext}";
 
-        print "\nStarting dump of $source to $dest\n\n" if ($opts{debug});
-        my $ddcmd = "$opts{ionice} dd if=$source bs=$opts{blocksize} | $opts{nice} $opts{compcmd} > $dest 2>/dev/null";
-        unless( system("$ddcmd") == 0 ){
-            die "Couldn't dump the block device/file $source to $dest\n";
+        my $cmd = '';
+        if ($opts{action} eq 'convert'){
+            print "\nStarting conversion in qcow2 format of $source to $dest\n\n" if ($opts{debug});
+            $cmd = "$opts{ionice} qemu-img convert -O qcow2";
+            $cmd .= " -c" if ($opts{compress} ne 'none');
+            $cmd .= " $source $dest 2>/dev/null 2>&1";
+            print "Ignoring compression format, lets use the internal qcow2 compression feature instead\n"
+                if ($opts{debug} && $opts{compress} ne '')
+        }
+        else {
+            print "\nStarting dump of $source to $dest\n\n" if ($opts{debug})
+            $cmd = "$opts{ionice} dd if=$source bs=$opts{blocksize} | $opts{nice} $opts{compcmd} > $dest 2>/dev/null";
+        }
+        unless( system("$cmd") == 0 ){
+            die "Couldn't dump or convert $source to $dest\n";
         }
         # Remove the snapshot if the current dumped disk is a snapshot
         sleep(1);
@@ -537,6 +556,7 @@ sub usage{
     "\n\n" .
     "\t--action: What action the script will run. Valid actions are\n\n" .
     "\t\t- dump: Run the dump routine (dump disk image to temp dir, pausing the VM if needed). It's the default action\n" .
+    "\t\t- convert: Works a bit like dump, but use qemu-img to convert the image to the qcow2 format in the backup dir\n" .
     "\t\t- cleanup: Run the cleanup routine, cleaning up the backup dir\n" .
     "\t\t- chunkmount: Mount each device as a chunkfs mount point directly in the backup dir\n" .
     "\t\t- unlock: just remove the lock file, but don't cleanup the backup dir\n\n" .
@@ -559,7 +579,8 @@ sub usage{
     "\t--snapsize=<snapsize>: The amount of space to use for snapshots. Use the same format as -L option of lvcreate. " .
         "eg: --snapsize=15G. Default is 5G\n\n" .
     "\t--compress[=[gzip|bzip2|pbzip2|lzop|xz|lzip|plzip]]: On the fly compress the disks images during the dump. If you " .
-        "don't specify a compression algo, gzip will be used.\n\n" .
+        "don't specify a compression algo, gzip will be used. For the convert action, the compression uses " .
+        "the internal qcow2 compression feature, and so, it ignores the compression format.\n\n" .
     "\t--exclude=hda,hdb: Prevent the disks listed from being dumped. The names are from the VM perspective, as " .
         "configured in livirt as the target element. It can be usefull for example if you want to dump the system " .
         "disk of a VM, but not the data one which can be backed up separatly, at the files level.\n\n" .
