@@ -176,8 +176,11 @@ $libvirt1 = Sys::Virt->new( uri => $connect[0] ) ||
     die "Error connecting to libvirt on URI: $connect[0]";
 
 if (defined $connect[1]){
-    $libvirt2 = Sys::Virt->new( uri => $connect[1] ) ||
-        die "Error connecting to libvirt on URI: $connect[1]";
+    $libvirt2 = '';
+    eval { $libvirt2 = Sys::Virt->new( uri => $connect[1] ); };
+    if ($@ && $opts{debug}){
+        print "Error connecting to libvirt on URI: $connect[1], lets hope is out of order\n";
+    }
 }
 
 our $libvirt = $libvirt1;
@@ -192,7 +195,7 @@ foreach our $vm (@vms){
 
     # If we've passed two connect URI, and our VM is not
     # running on the first one, check on the second one
-    if (!$dom->is_active && defined $connect[1]){
+    if (!$dom->is_active && $libvirt2 ne ''){
         $dom = $libvirt2->get_domain_by_name($vm) ||
             die "Error opening $vm object";
 
@@ -603,14 +606,14 @@ sub usage{
 sub save_vm_state{
     if ($dom->is_active()){
         print "$vm is running, saving state....\n" if ($opts{debug});
-        # if connect[1] is defined, you've passed several connection URI
+        # if $libvirt2 is defined, you've passed several connection URI
         # This means that you're running a dual hypervisor cluster
         # And depending on the one running the current VM
         # $backupdir might not be available
         # whereas /var/lib/libvirt/qemu/save/ might
         # if you've mounted here a shared file system
         # (NFS, GlusterFS, GFS2, OCFS etc...)
-        if (defined $connect[1]){
+        if ($libvirt2 ne ''){
             $dom->managed_save();
             move "/var/lib/libvirt/qemu/save/$vm.save", "$backupdir/$vm.state";
         }
@@ -628,14 +631,14 @@ sub save_vm_state{
 sub restore_vm{
     if (! $dom->is_active()){
         if (-e "$backupdir/$vm.state"){
-            # if connect[1] is defined, you've passed several connection URI
+            # if $libvirt2 is defined, you've passed several connection URI
             # This means that you're running a dual hypervisor cluster
             # And depending on the one running the current VM
             # $backupdir might not be available
             # whereas /var/lib/libvirt/qemu/save/ might
             # if you've mounted here a shared file system
             # (NFS, GlusterFS, GFS2, OCFS etc...)
-            if (defined $connect[1]){
+            if ($libvirt2){
                 copy "$backupdir/$vm.state", "/var/lib/libvirt/qemu/save/$vm.save";
                 start_vm();
             }
