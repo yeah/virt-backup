@@ -438,7 +438,7 @@ sub run_dump{
                 if ($opts{debug} && $opts{compress} ne 'none')
         }
         else {
-            print "\nStarting dump of $source to $dest\n\n" if ($opts{debug})
+            print "\nStarting dump of $source to $dest\n\n" if ($opts{debug});
             $cmd = "$opts{ionice} dd if=$source bs=$opts{blocksize} | $opts{nice} $opts{compcmd} > $dest 2>/dev/null";
         }
         unless( system("$cmd") == 0 ){
