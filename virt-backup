@@ -43,14 +43,16 @@ our @disks = ();
 $opts{action} = 'dump';
 # Where backups will be stored. This directory must already exists
 $opts{backupdir} = '/var/lib/libvirt/backup';
-# Size of LVM snapshots (which will be used to backup VM with minimum downtown
-# if the VM store data directly on a LV)
+# Size of LVM snapshots (which will be used to backup VM with minimum downtime
+# if the VM is backed by LVM)
 $opts{snapsize} = '5G';
-# If we should also dump the VM state (dump the mémory, equivalent of virsh save)
+# If we should also dump the VM state (dump the memory, equivalent of virsh save)
 $opts{state} = 0;
-# Debug
+# Debug, if enabled, will print the different steps of the backup
 $opts{debug} = 0;
 # Let the lock file present after the dump is finisehd
+# Usefull to prevent another backup until you run the script
+# with --action=cleanup
 $opts{keeplock} = 0;
 # Should we try to create LVM snapshots during the dump ?
 $opts{snapshot} = 1;
@@ -63,6 +65,9 @@ $opts{lvcreate} = '/sbin/lvcreate -c 512';
 # lvremove path
 $opts{lvremove} = '/sbin/lvremove';
 # Override path to the LVM backend
+# Usefull if you have a layer between the filesystem
+# and the LVM volume, like GlusterFS
+# otherwise, the LVM path should be auto detected
 $opts{lvm} = '';
 # chunkfs path
 $opts{chunkfs} = '/usr/bin/chunkfs';
@@ -325,6 +330,7 @@ sub prepare_backup{
                     push (@disks, {source => $source, target => $target, type => 'block'});
                 }
             }
+            # If the disk is a file
             elsif ($disk->{type} eq 'file'){
                 # Try to find the mount point, and the backing device
                 my @df = `df -P $source`;
@@ -347,6 +353,7 @@ sub prepare_backup{
                         }
                         close MOUNT;
                     }
+                    # Force the cache to be flushed before taking the snapshot
                     die "Couldn't call sync before taking the snapshot: $!\n" unless (system ("/bin/sync") == 0);
                     if (!$is_mounted && create_snapshot($lvm,$time)){
                         print "$lvm seems to be a valid logical volume (LVM), a snapshot has been taken as " .
@@ -431,7 +438,7 @@ sub run_dump{
         my $cmd = '';
         if ($opts{action} eq 'convert'){
             print "\nStarting conversion in qcow2 format of $source to $dest\n\n" if ($opts{debug});
-            $cmd = "$opts{ionice} qemu-img convert -O qcow2";
+            $cmd = "$opts{nice} $opts{ionice} qemu-img convert -O qcow2";
             $cmd .= " -c" if ($opts{compress} ne 'none');
             $cmd .= " $source $dest 2>/dev/null 2>&1";
             print "Ignoring compression format, lets use the internal qcow2 compression feature instead\n"
