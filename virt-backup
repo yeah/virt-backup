@@ -179,9 +179,9 @@ if (! -d $opts{backupdir} ){
 print "\n\nConnecting to libvirt daemon using $connect[0] as URI\n" if ($opts{debug});
 $libvirt1 = Sys::Virt->new( uri => $connect[0] ) || 
     die "Error connecting to libvirt on URI: $connect[0]";
+$libvirt2 = '';
 
 if (defined $connect[1]){
-    $libvirt2 = '';
     eval { $libvirt2 = Sys::Virt->new( uri => $connect[1] ); };
     if ($@ && $opts{debug}){
         print "Error connecting to libvirt on URI: $connect[1], lets hope is out of order\n";
