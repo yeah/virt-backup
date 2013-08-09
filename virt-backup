@@ -750,10 +750,10 @@ sub save_xml{
 sub create_snapshot{
     my ($blk,$suffix) = @_;
     my $ret = 0;
-    print "Running: $opts{lvcreate} -s -n " . $blk . $suffix .
-        " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null\n" if $opts{debug};
-    if ( system("$opts{lvcreate} -s -n " . $blk . $suffix .
-        " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null") == 0 ) {
+    my $cmd = "$opts{lvcreate} -s -n " . $blk . $suffix .
+              " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null\n";
+    print "Running: $cmd" if $opts{debug};
+    if ( system("$cmd") == 0 ) {
         $ret = 1;
         open SNAPLIST, ">>$backupdir.meta/snapshots" or die "Error, couldn't open snapshot list file\n";
         print SNAPLIST $blk.$suffix ."\n";
