@@ -341,7 +341,7 @@ sub prepare_backup{
                 # We cannot pass this arg to lvcreate to take a snapshot, wee need to detect Volume Group
                 # name and Logical Volume name
                 my (undef,$lv,$vg) = split (/\s+/, `/sbin/lvs --noheadings -o lv_name,vg_name $dev </dev/null`);
-                $dev = '/dev/'. $vg . '/' . $lv
+                $dev = '/dev/'. $vg . '/' . $lv;
                 # The backing device can be detected, but can also be overwritten with --lvm=/dev/data/vm
                 # This can be usefull for example when you use GlusterFS. Df will return something like
                 # localhost:/vmstore as the device, but this GlusterFS volume might be backed by an LVM
