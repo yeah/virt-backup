@@ -336,17 +336,25 @@ sub prepare_backup{
             elsif ($disk->{type} eq 'file'){
                 # Try to find the mount point, and the backing device
                 my @df = `df -PT $source`;
-                my ($dev,$type,undef,undef,undef,undef,$mount) = split /\s+/, $df[1];
+                my ($dev,undef,undef,undef,undef,undef,$mount) = split /\s+/, $df[1];
                 # Ok, we now have the backing device which probably looks like /dev/mapper/vg-lv
                 # We cannot pass this arg to lvcreate to take a snapshot, wee need to detect Volume Group
                 # name and Logical Volume name
-                my (undef,$lv,$vg) = split (/\s+/, `/sbin/lvs --noheadings -o lv_name,vg_name $dev </dev/null`);
-                $dev = '/dev/'. $vg . '/' . $lv;
+                my $lvm = '';
+                if ($opts{lvm} eq '' and $dev =~ m!^/dev/!){
+                    my (undef,$lv,$vg) = split (/\s+/, `/sbin/lvs --noheadings -o lv_name,vg_name $dev </dev/null`);
+                    $lvm = '/dev/'. $vg . '/' . $lv;
+                }
                 # The backing device can be detected, but can also be overwritten with --lvm=/dev/data/vm
                 # This can be usefull for example when you use GlusterFS. Df will return something like
                 # localhost:/vmstore as the device, but this GlusterFS volume might be backed by an LVM
                 # volume, in which case, you can pass it as an argument to the script
-                my $lvm = ($opts{lvm} ne '' && -e "$opts{lvm}") ? $opts{lvm} : $dev;
+                elsif ($opts{lvm} ne '' && -e "$opts{lvm}"){
+                    $lvm = $opts{lvm};
+                }
+                else{
+                    die "Couldn't detect the backing device for $source. You should pass it as argument like --lvm=/dev/data/vm\n\n";
+                }
                 my $mp = $lvm;
                 $mp =~ s!/!_!g;
                 $mp = "$backupdir.mount/$mp";
@@ -367,8 +375,13 @@ sub prepare_backup{
                             $lvm . $time ."\n" if ($opts{debug});
                         my $snap = $lvm.$time;
                         mkdir $mp || die "Couldn't create $mp: $!";
+                        my $type = `/sbin/blkid $lvm`;
+                        $type =~ m/TYPE=\"(\w+)\"/;
+                        $type = $1;
                         # -o nouuid is needed if XFS is used
-                        my $option = ($type eq 'xfs') ? '-o nouuid': '';
+                        # In some cases, mount cannot auto detect the XFS format, 
+                        # so we have to pass the type explicitly
+                        my $option = ($type eq 'xfs') ? '-t xfs -o nouuid': '';
                         print "Mounting $snap on $mp\n (as an $type filesystem)\n" if ($opts{debug});
                         system("/bin/mount $option $snap $mp");
                         open MOUNT, ">$backupdir.meta/mount";
