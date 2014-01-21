@@ -1,7 +1,7 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.1.3
+Version: 0.2.0
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
@@ -17,18 +17,11 @@ Requires: perl(Sys::Virt) => 0.2.3
 Requires: perl(XML::Simple)
 Requires: fuse-chunkfs
 
-Requires(pre): shadow-utils
-Requires(preun): initscripts, chkconfig
-Requires(postun): initscripts
-Requires(post): initscripts, chkconfig
-
 AutoReq: no
 
 %description
-This package contains utilities for virtualization stack
-on RHEL & ci. It provides for example SELinux policy, hook
-scripts to set permissions on ressources files
-etc...
+This package provides a helper script to backup
+libvirt managed virtual machines with minimal downtime
 
 %prep
 %setup -q
@@ -40,7 +33,8 @@ etc...
 %{__rm} -rf $RPM_BUILD_ROOT
 
 %if %{?fedora}%{?rhel} <= 5
-sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin/lvremove|g" virt-backup
+sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin/lvremove|g" \
+       -e "s|/sbin/lvs|/usr/sbin/lvs|g" virt-backup
 %endif
 
 # Install backup script
@@ -54,11 +48,6 @@ sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin
 %{__rm} -rf $RPM_BUILD_ROOT
 
 %pre
-getent group kvm >/dev/null || groupadd -g 36 -r kvm
-getent group qemu >/dev/null || groupadd -g 107 -r qemu
-getent passwd qemu >/dev/null || \
-  useradd -r -u 107 -g qemu -G kvm -d / -s /sbin/nologin \
-    -c "qemu user" qemu
 
 %preun
 
@@ -68,9 +57,16 @@ getent passwd qemu >/dev/null || \
 %defattr(-,root,root,-)
 %doc README CHANGELOG.git
 %{_bindir}/*
-%dir %attr(0770, qemu, kvm) %{_localstatedir}/lib/libvirt/backup
+%dir %attr(0770, qemu, qemu) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Fri Aug 9 2013 Daniel B. <daniel@firewall-services.com> - 0.2.0-1
+- Support snapshot for file based images (if FS is backed by LVM)
+- Support a dual nodes cluster situation
+- Add a convert action, which uses qemu-img to convert into qcow2
+  instead of dumping with dd
+- Cleanup the spec file
+
 * Tue Mar 5 2013 Daniel B. <daniel@firewall-services.com> - 0.1.3-1
 - Send /dev/null to lvm commands stdin
 
