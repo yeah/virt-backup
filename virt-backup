@@ -358,6 +358,7 @@ sub prepare_backup{
                 my $mp = $lvm;
                 $mp =~ s!/!_!g;
                 $mp = "$backupdir.mount/$mp";
+                my $file = $source;
                 # Try to snapshot this device
                 if ( $opts{snapshot} ){
                     # Maybe the LVM is already snapshoted and mounted for a previous disk ?
@@ -370,7 +371,11 @@ sub prepare_backup{
                     }
                     # Force the cache to be flushed before taking the snapshot
                     die "Couldn't call sync before taking the snapshot: $!\n" unless (system ("/bin/sync") == 0);
-                    if (!$is_mounted && create_snapshot($lvm,$time)){
+                    if ($is_mounted){
+                        print "A snapshot of $lvm is already mounted on $backupdir.mount/$mp\n\n" if ($opts{debug});
+                        $file =~ s|$mount|$mp|;
+                    }
+                    elsif (create_snapshot($lvm,$time)){
                         print "$lvm seems to be a valid logical volume (LVM), a snapshot has been taken as " .
                             $lvm . $time ."\n" if ($opts{debug});
                         my $snap = $lvm.$time;
@@ -387,9 +392,12 @@ sub prepare_backup{
                         open MOUNT, ">$backupdir.meta/mount";
                         print MOUNT $lvm;
                         close MOUNT;
+                        $file =~ s|$mount|$mp|;
                     }
-                    my $file = $source;
-                    $file =~ s|$mount|$mp|;
+                    else {
+                        print "An error occured while snapshoting $lvm, live backup will be disabled\n" if ($opts{debug});
+                        $opts{livebackup} = 0;
+                    }
                     push (@disks, {source => $file, target => $target, type => 'file'});
                 }
                 else {
