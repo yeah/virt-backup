@@ -4,7 +4,7 @@
 #   Daniel Berteaud <daniel@firewall-services.com>
 #
 # COPYRIGHT
-#   Copyright (C) 2009-2012  Daniel Berteaud
+#   Copyright (C) 2009-2014  Daniel Berteaud
 #
 #   This program is free software; you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -81,9 +81,14 @@ $opts{nice} = 'nice -n 19';
 # which can be quite I/O intensive. This only works if your storage
 # uses the CFQ scheduler (which is the default on EL)
 $opts{ionice} = 'ionice -c 2 -n 7';
-
+# if you want to shutdown the guest instead of suspending it
+# you can pass the --shutdown flag (mutual exclusive with --state)
+# in which case, this script will send an ACPI signal to the guest
+# and wait for shutdowntimeout seconds for the guest to be off
 $opts{shutdown} = 0;
-$opts{shutdown_time} = 300;
+$opts{shutdowntimeout} = 300;
+
+# Those are internal variables, do not modify
 $opts{livebackup} = 1;
 $opts{wasrunning} = 1;
  
@@ -338,14 +343,14 @@ sub prepare_backup{
                 my @df = `df -PT $source`;
                 my ($dev,undef,undef,undef,undef,undef,$mount) = split /\s+/, $df[1];
                 # Ok, we now have the backing device which probably looks like /dev/mapper/vg-lv
-                # We cannot pass this arg to lvcreate to take a snapshot, wee need to detect Volume Group
+                # We cannot pass this arg to lvcreate to take a snapshot, we need to detect Volume Group
                 # name and Logical Volume name
                 my $lvm = '';
                 if ($opts{lvm} eq '' and $dev =~ m!^/dev/!){
                     my (undef,$lv,$vg) = split (/\s+/, `/sbin/lvs --noheadings -o lv_name,vg_name $dev </dev/null`);
                     $lvm = '/dev/'. $vg . '/' . $lv;
                 }
-                # The backing device can be detected, but can also be overwritten with --lvm=/dev/data/vm
+                # The backing device can be detected, but can also be overwritten with --lvm=/dev/vg/lv
                 # This can be usefull for example when you use GlusterFS. Df will return something like
                 # localhost:/vmstore as the device, but this GlusterFS volume might be backed by an LVM
                 # volume, in which case, you can pass it as an argument to the script
@@ -353,7 +358,7 @@ sub prepare_backup{
                     $lvm = $opts{lvm};
                 }
                 else{
-                    die "Couldn't detect the backing device for $source. You should pass it as argument like --lvm=/dev/data/vm\n\n";
+                    die "Couldn't detect the backing device for $source. You should pass it as argument like --lvm=/dev/vg/lv\n\n";
                 }
                 my $mp = $lvm;
                 $mp =~ s!/!_!g;
@@ -735,7 +740,7 @@ sub shutdown_vm(){
         # Wait $opts{shutdowntimeout} seconds for vm to shutdown
         while ($dom->get_info->{state} != Sys::Virt::Domain::STATE_SHUTOFF){
             if ($shutdown_counter >= $opts{shutdowntimeout}){
-                die "Waited $opts{shutdown_time} seconds for $vm to shutdown.  Shutdown Failed\n";
+                die "Waited $opts{shutdowntimeout} seconds for $vm to shutdown.  Shutdown Failed\n";
             }
             $shutdown_counter++;
             sleep(1);
