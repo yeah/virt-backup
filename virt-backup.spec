@@ -1,7 +1,7 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.2.0
+Version: 0.2.1
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
@@ -60,6 +60,10 @@ sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin
 %dir %attr(0770, qemu, qemu) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Thu Jan 30 2014 Daniel B. <daniel@firewall-services.com> - 0.2.1-1
+- Gracefuly handle snapshot failure for file based disks
+- Improve comments
+
 * Fri Aug 9 2013 Daniel B. <daniel@firewall-services.com> - 0.2.0-1
 - Support snapshot for file based images (if FS is backed by LVM)
 - Support a dual nodes cluster situation
