@@ -392,7 +392,7 @@ sub prepare_backup{
                         # In some cases, mount cannot auto detect the XFS format, 
                         # so we have to pass the type explicitly
                         my $option = ($type eq 'xfs') ? '-t xfs -o nouuid': '';
-                        print "Mounting $snap on $mp\n (as an $type filesystem)\n" if ($opts{debug});
+                        print "Mounting $snap on $mp (as an $type filesystem)\n" if ($opts{debug});
                         system("/bin/mount $option $snap $mp");
                         open MOUNT, ">$backupdir.meta/mount";
                         print MOUNT $lvm;
