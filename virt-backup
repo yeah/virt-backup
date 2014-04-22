@@ -802,7 +802,7 @@ sub create_snapshot{
         }
     }
     # In any case, failed or not, remove our lock
-    unlink <$lock>;
+    unlink $lock if (-e $lock);
     return $ret;
 }
 
