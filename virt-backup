@@ -785,13 +785,13 @@ sub create_snapshot{
         print "Running: $cmd" if $opts{debug};
         if (-e "$lock" . '.lock'){
           print "Volume $blk is locked...\n" if $opts{debug};
-          sleep(1);
         }
         else{
             open ( LOCK, ">$lock" );
             print LOCK "";
             close LOCK;
             if ( system("$cmd") == 0 ) {
+                print "Snapshot taken\n" if $opts{debug};
                 $ret = 1;
                 open SNAPLIST, ">>$backupdir.meta/snapshots" or die "Error, couldn't open snapshot list file\n";
                 print SNAPLIST $blk.$suffix ."\n";
@@ -799,7 +799,11 @@ sub create_snapshot{
                 # break the loop now
                 $cnt = 10;
             }
+            else{
+                print "An error occured, couldn't create the snapshot" if $opts{debug};
+            }
         }
+        sleep(1);
     }
     # In any case, failed or not, remove our lock
     unlink $lock if (-e $lock);
