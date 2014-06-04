@@ -797,7 +797,7 @@ sub create_snapshot{
                 print SNAPLIST $blk.$suffix ."\n";
                 close SNAPLIST;
                 # break the loop now
-                $cnt = 10;
+                $cnt = 30;
             }
             else{
                 print "An error occured, couldn't create the snapshot\n" if $opts{debug};
