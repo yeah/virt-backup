@@ -418,7 +418,9 @@ sub prepare_backup{
                     push (@disks, {source => $source, target => $target, type => 'file'});
                 }
             }
-            print "Adding $source to the list of disks to be backed up\n" if ($opts{debug});
+            if ($opts{debug} && ($opts{livebackup} || $opts{offline})){
+              print "Adding $source to the list of disks to be backed up\n";
+            }
         }
     }
 
