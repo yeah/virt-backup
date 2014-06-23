@@ -56,6 +56,8 @@ $opts{debug} = 0;
 $opts{keeplock} = 0;
 # Should we try to create LVM snapshots during the dump ?
 $opts{snapshot} = 1;
+# Should we pause the VM during the backup if we cannot take a snapshot ?
+$opts{offline} = 1;
 # Libvirt URI to connect to
 @connect = ();
 # Compression used with the dump action (the compression is done on the fly)
@@ -107,6 +109,7 @@ GetOptions(
     "unlock"             => \$opts{unlock},
     "connect=s"          => \@connect,
     "snapshot!"          => \$opts{snapshot},
+    "offline!"           => \$opts{offline},
     "compress:s"         => \$opts{compress},
     "exclude=s"          => \@excludes,
     "blocksize=s"        => \$opts{blocksize},
@@ -456,6 +459,11 @@ sub prepare_backup{
                 resume_vm();
             }
         }
+    }
+    # Are offline backups allowed ?
+    elsif (!$opts{offline}){
+      run_cleanup();
+      die "\nOffline backups disabled, sorry, I cannot continue\n";
     }
 }
 
