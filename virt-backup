@@ -418,7 +418,7 @@ sub prepare_backup{
     }
 
     # Summarize the list of disk to be dumped
-    if ($opts{debug}){
+    if ($opts{debug} && ($opts{livebackup} || $opts{offline})){
         if ($opts{action} eq 'dump'){
             print "\n\nThe following disks will be dumped:\n\n";
             foreach $disk (@disks){
@@ -463,7 +463,7 @@ sub prepare_backup{
     # Are offline backups allowed ?
     elsif (!$opts{offline}){
       run_cleanup();
-      die "\nOffline backups disabled, sorry, I cannot continue\n";
+      die "Offline backups disabled, sorry, I cannot continue\n\n";
     }
 }
 
