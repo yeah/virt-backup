@@ -230,7 +230,7 @@ foreach our $vm (@vms){
     our $time = "_".time();
     if ($opts{action} eq 'cleanup'){
         print "Running cleanup routine for $vm\n\n" if ($opts{debug});
-        run_cleanup();
+        run_cleanup(1);
     }
     elsif ($opts{action} eq 'unlock'){
         print "Unlocking $vm\n\n" if ($opts{debug});
@@ -467,7 +467,7 @@ sub prepare_backup{
     }
     # Are offline backups allowed ?
     elsif (!$opts{offline}){
-      run_cleanup();
+      run_cleanup(1);
       die "Offline backups disabled, sorry, I cannot continue\n\n";
     }
 }
@@ -515,6 +515,9 @@ sub run_dump{
     }
     # And remove the lock file, unless the --keep-lock flag is present
     unlock_vm() unless ($opts{keeplock});
+    # Cleanup snapshot and other tempm file
+    # but don't remove the dumps themself
+    run_cleanup(0);
 }
 
 sub run_chunkmount{
@@ -537,7 +540,13 @@ sub run_chunkmount{
 
 # Remove the dumps
 sub run_cleanup{
-    print "\nRemoving backup files\n" if ($opts{debug});
+    my $rmDumps = shift;
+    if ($rmDumps){
+      print "\nRemoving backup files\n" if ($opts{debug});
+    }
+    else{
+      print "\nRemoving snapshots and temporary files\n" if ($opts{debug});
+    }
     my $cnt = 0;
     my $meta = 0;
     my $snap = 0;
@@ -582,7 +591,6 @@ sub run_cleanup{
         close MOUNTS;
     }
 
-    $cnt = unlink <$backupdir/*>;
     if (open SNAPLIST, "<$backupdir.meta/snapshots"){
         sleep(1);
         foreach (<SNAPLIST>){
@@ -605,6 +613,9 @@ sub run_cleanup{
     rmdir "$backupdir/";
     rmdir "$backupdir.meta";
     rmdir "$backupdir.mount";
+    if ($rmDumps){
+      $cnt = unlink <$backupdir/*>;
+    }
     print "$cnt file(s) removed\n$snap LVM snapshots removed\n$meta metadata files removed\n\n" if $opts{debug};
 }
 
