@@ -789,7 +789,7 @@ sub create_snapshot{
     $lock = $opts{backupdir} . '/' . $lock . '.lock';
     my $cmd = "$opts{lvcreate} -s -n " . $blk . $suffix .
               " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null\n";
-    for ($cnt = 0; $cnt < 30; $cnt++ ){
+    for ($cnt = 0; $cnt < 10; $cnt++ ){
         print "Running: $cmd" if $opts{debug};
         if (-e "$lock" . '.lock'){
           print "Volume $blk is locked...\n" if $opts{debug};
@@ -805,7 +805,7 @@ sub create_snapshot{
                 print SNAPLIST $blk.$suffix ."\n";
                 close SNAPLIST;
                 # break the loop now
-                $cnt = 30;
+                $cnt = 10;
             }
             else{
                 print "An error occured, couldn't create the snapshot\n" if $opts{debug};
