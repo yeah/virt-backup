@@ -178,6 +178,11 @@ if (($opts{state}) && ($opts{shutdown})){
     print "State and shutdown flags cannot be used together\n";
     exit 1;
 }
+# Or if --no-offline and --no-snapshot are both passed
+if (!$opts{offline} && !$opts{snapshot}){
+    print "--no-offline and --no-snapshot flags cannot be used together\n";
+    exit 1;
+}
 
 # Backup dir needs to be created first 
 if (! -d $opts{backupdir} ){
@@ -606,7 +611,7 @@ sub run_cleanup{
 # Print help 
 sub usage{
     print "usage:\n$0 --action=[dump|cleanup|chunkmount|unlock] --vm=vm1[,vm2,vm3] [--debug] [--exclude=hda,hdb] [--compress] ".
-        "[--state] [--shutdown] [--shutdown-timeout] [--no-snapshot] [--snapsize=<size>] [--backupdir=/path/to/dir] [--connect=<URI>] ".
+        "[--state] [--shutdown] [--shutdown-timeout] [--no-offline] [--no-snapshot] [--snapsize=<size>] [--backupdir=/path/to/dir] [--connect=<URI>] ".
         "[--keep-lock] [--blocksize=<block size>]\n" .
     "\n\n" .
     "\t--action: What action the script will run. Valid actions are\n\n" .
@@ -624,6 +629,9 @@ sub usage{
         "the exact state it was when the backup started. The reason this flag is optional is that some guests " .
         "crashes after the restoration, especially when using the kvm-clock. Test this functionnality with" .
         "your environnement before using this flag on production. This flag is mutual exclusive with --shutdown\n\n" .
+    "\t--no-offline: Abort the backup if live backup isn't possible (meaning snapshot failed). This is to prevent a VM " .
+        "begin paused for the duration of the backup, in some cases, its better to just abort the backup. Of course " .
+        "this flag is mutually exclusive with --no-snapshot\n\n" .
     "\t--no-snapshot: Do not attempt to use LVM snapshots. If not present, the script will try to take a snapshot " .
         "of each disk of type 'block'. If all disk can be snapshoted, the VM is resumed, or restored (depending " .
         "on the --state flag) immediatly after the snapshots have been taken, resulting in almost no downtime. " .
