@@ -1,7 +1,7 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.2.5
+Version: 0.2.6
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
@@ -60,6 +60,11 @@ sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin
 %dir %attr(0770, qemu, qemu) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Mon Jun 23 2014 Daniel B. <daniel@firewall-services.com> - 0.2.6-1
+- Add a --no-offline option
+- Revert 10 tries max to take snapshot
+- Cleanup snapshot and temp files for image based disks
+
 * Wed Jun 4 2014 Daniel B. <daniel@firewall-services.com> - 0.2.5-1
 - Fix breaking the loop while taking snapshots
 
