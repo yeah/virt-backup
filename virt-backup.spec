@@ -1,7 +1,7 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.2.6
+Version: 0.2.7
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
@@ -12,7 +12,7 @@ BuildRoot: %{_tmppath}/%{name}-buildroot
 Prefix: %{_prefix}
 Requires: lvm2
 Requires: util-linux
-Requires: lzop, bzip2, pbzip2, gzip, xz
+Requires: lzop, bzip2, gzip, xz
 Requires: perl(Sys::Virt) => 0.2.3
 Requires: perl(XML::Simple)
 Requires: fuse-chunkfs
@@ -60,6 +60,9 @@ sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin
 %dir %attr(0770, qemu, qemu) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Tue Oct 21 2014 Daniel B. <daniel@firewall-services.com> - 0.2.7-1
+- Do not explicitly require pbzip2
+
 * Mon Jun 23 2014 Daniel B. <daniel@firewall-services.com> - 0.2.6-1
 - Add a --no-offline option
 - Revert 10 tries max to take snapshot
