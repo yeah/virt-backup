@@ -43,8 +43,12 @@ our @disks = ();
 $opts{action} = 'dump';
 # Where backups will be stored. This directory must already exists
 $opts{backupdir} = '/var/lib/libvirt/backup';
+# Lockdir is where locks will be held when backing up a VM. The default is to put the lock
+# in the backup dir of the VM, but in some situations, you want to put it elsewhere
+$opts{lockdir} = '';
 # Size of LVM snapshots (which will be used to backup VM with minimum downtime
-# if the VM is backed by LVM)
+# if the VM is backed by LVM). If size is set to 0, virt-backup will assume
+# the volume is thinly provisioned and will create a thin snapshot
 $opts{snapsize} = '5G';
 # If we should also dump the VM state (dump the memory, equivalent of virsh save)
 $opts{state} = 0;
@@ -63,7 +67,7 @@ $opts{offline} = 1;
 # Compression used with the dump action (the compression is done on the fly)
 $opts{compress} = 'none';
 # lvcreate path
-$opts{lvcreate} = '/sbin/lvcreate -c 512';
+$opts{lvcreate} = '/sbin/lvcreate';
 # lvremove path
 $opts{lvremove} = '/sbin/lvremove';
 # lvs path
@@ -101,6 +105,7 @@ GetOptions(
     "state"              => \$opts{state},
     "snapsize=s"         => \$opts{snapsize},
     "backupdir=s"        => \$opts{backupdir},
+    "lockdir=s"          => \$opts{lockdir},
     "lvm=s"              => \$opts{lvm},
     "vm=s"               => \@vms,
     "action=s"           => \$opts{action},
@@ -190,6 +195,12 @@ if (! -d $opts{backupdir} ){
     exit 1;
 }
 
+# Lockdir, if defined, must also exist
+if ($opts{lockdir} ne '' && !-d $opts{lockdir}){
+    print "$opts{lockdir} is not a valid directory\n";
+    exit 1;
+}
+
 # Connect to libvirt
 print "\n\nConnecting to libvirt daemon using $connect[0] as URI\n" if ($opts{debug});
 $libvirt1 = Sys::Virt->new( uri => $connect[0] ) || 
@@ -227,6 +238,7 @@ foreach our $vm (@vms){
         }
     }
     our $backupdir = $opts{backupdir}.'/'.$vm;
+    our $lockdir = ($opts{lockdir} eq '') ? "$backupdir.meta" : $opts{lockdir};
     our $time = "_".time();
     if ($opts{action} eq 'cleanup'){
         print "Running cleanup routine for $vm\n\n" if ($opts{debug});
@@ -270,7 +282,7 @@ sub prepare_backup{
     my $data = $xml->XMLin( $dom->get_xml_description(), forcearray => ['disk'] );
 
     # Stop here if the lock file is present, another dump might be running
-    die "Another backup is running\n" if ( -e "$backupdir.meta/$vm.lock" );
+    die "Another backup is running\n" if ( -e "$lockdir/$vm.lock" );
 
     # Lock VM: Create a lock file so only one dump process can run
     lock_vm();
@@ -517,8 +529,8 @@ sub run_dump{
     }
     # And remove the lock file, unless the --keep-lock flag is present
     unlock_vm() unless ($opts{keeplock});
-    # Cleanup snapshot and other tempm file
-    # but don't remove the dumps themself
+    # Cleanup snapshot and other temp files
+    # but don't remove the dumps themselves
     run_cleanup(0);
 }
 
@@ -611,6 +623,7 @@ sub run_cleanup{
         }
         close SNAPLIST;
     }
+    unlock_vm();
     $meta = unlink <$backupdir.meta/*>;
     rmdir "$backupdir/";
     rmdir "$backupdir.meta";
@@ -653,7 +666,8 @@ sub usage{
         "dumped in the backup dir. That's why you should use a fast support for the backup dir (fast disks, RAID0 " .
         "or RAID10)\n\n" .
     "\t--snapsize=<snapsize>: The amount of space to use for snapshots. Use the same format as -L option of lvcreate. " .
-        "eg: --snapsize=15G. Default is 5G\n\n" .
+        "eg: --snapsize=15G. Default is 5G. If you specify a size of 0, virt-backup will assume the volume is thinly provisioned " .
+        "and will create a thin snapshot\n\n" .
     "\t--compress[=[gzip|bzip2|pbzip2|lzop|xz|lzip|plzip]]: On the fly compress the disks images during the dump. If you " .
         "don't specify a compression algo, gzip will be used. For the convert action, the compression uses " .
         "the internal qcow2 compression feature, and so, it ignores the compression format.\n\n" .
@@ -662,6 +676,8 @@ sub usage{
         "disk of a VM, but not the data one which can be backed up separatly, at the files level.\n\n" .
     "\t--backupdir=/path/to/backup: Use an alternate backup dir. The directory must exists and be writable. " .
         "The default is /var/lib/libvirt/backup\n\n" .
+    "\t--lockdir=/path/to/locks: Use an alternate lock dir. The directory must exists and be writable. " .
+        "The default is to put locks in the backup diretory, but you might want it elsewhere (on a shared storage for example)\n\n" .
     "\t--connect=<URI>: URI to connect to libvirt daemon (to suspend, resume, save, restore VM etc...). " .
         "The default is qemu:///system.\n\n" .
     "\t--keep-lock: Let the lock file present. This prevent another " .
@@ -808,8 +824,16 @@ sub create_snapshot{
     my $lock = $blk;
     $lock =~ s/\//\-/g;
     $lock = $opts{backupdir} . '/' . $lock . '.lock';
-    my $cmd = "$opts{lvcreate} -s -n " . $blk . $suffix .
-              " -L $opts{snapsize} $blk > /dev/null 2>&1 < /dev/null\n";
+    my $cmd = "$opts{lvcreate} -s -n " . $blk . $suffix;
+    # passing snapsize = 0 means don't allocate a fixed size, which will try to create a thin snapshot
+    if ($opts{snapsize} ne '0'){
+      $cmd .= " -L $opts{snapsize}";
+    }
+    else{
+      # For thin snapshots, we need to tell LVM to enable the volume right away
+      $cmd .= " -kn";
+    }
+    $cmd .= " $blk > /dev/null 2>&1 < /dev/null\n";
     for ($cnt = 0; $cnt < 10; $cnt++ ){
         print "Running: $cmd" if $opts{debug};
         if (-e "$lock" . '.lock'){
@@ -854,7 +878,7 @@ sub destroy_snapshot{
 # Just creates an empty lock file
 sub lock_vm{
     print "Locking $vm\n" if $opts{debug};
-    open ( LOCK, ">$backupdir.meta/$vm.lock" ) || die $!;
+    open ( LOCK, ">$lockdir/$vm.lock" ) || die $!;
     print LOCK "";
     close LOCK;
 }
@@ -863,6 +887,6 @@ sub lock_vm{
 # Just removes the lock file
 sub unlock_vm{
     print "Removing lock file for $vm\n\n" if $opts{debug};
-    unlink <$backupdir.meta/$vm.lock>;
+    unlink <$lockdir/$vm.lock>;
 }
 
