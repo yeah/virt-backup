@@ -1,7 +1,7 @@
 
 Summary: backup script for libvirt managed VM
 Name: virt-backup
-Version: 0.2.7
+Version: 0.2.8
 Release: 1
 Source0: %{name}-%{version}.tar.gz
 BuildArch: noarch
@@ -60,6 +60,10 @@ sed -i -e "s|/sbin/lvcreate|/usr/sbin/lvcreate|g" -e "s|/sbin/lvremove|/usr/sbin
 %dir %attr(0770, qemu, qemu) %{_localstatedir}/lib/libvirt/backup
 
 %changelog
+* Thu Nov 6 2014 Daniel B. <daniel@firewall-services.com> - 0.2.8-1
+- Support thin volumes
+- Possibility to specify an alternate lock directory
+
 * Tue Oct 21 2014 Daniel B. <daniel@firewall-services.com> - 0.2.7-1
 - Do not explicitly require pbzip2
 
