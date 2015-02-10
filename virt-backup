@@ -27,6 +27,7 @@ use XML::Simple;
 use Sys::Virt;
 use Getopt::Long;
 use File::Copy;
+use File::Spec;
 
 # Set umask
 umask(022);
@@ -189,9 +190,11 @@ if (!$opts{offline} && !$opts{snapshot}){
     exit 1;
 }
 
+# Makes sur backupdir is an absolute path
+$opts{backupdir} = File::Spec->rel2abs($opts{backupdir}, '/');
 # Backup dir needs to be created first 
 if (! -d $opts{backupdir} ){
-    print "$opts{backupdir} is not a valid directory\n";
+    print "$opts{backupdir} doesn't exist\n";
     exit 1;
 }
 
