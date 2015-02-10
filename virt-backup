@@ -385,7 +385,7 @@ sub prepare_backup{
                 }
                 my $mp = $lvm;
                 $mp =~ s!/!_!g;
-                $mp = "$backupdir.mount/$mp";
+                $mp = "$backupdir.mount/$mp/";
                 my $file = $source;
                 # Try to snapshot this device
                 if ( $opts{snapshot} ){
@@ -426,6 +426,7 @@ sub prepare_backup{
                         print "An error occured while snapshoting $lvm, live backup will be disabled\n" if ($opts{debug});
                         $opts{livebackup} = 0;
                     }
+                    $file =~ s|//|/|g;
                     push (@disks, {source => $file, target => $target, type => 'file'});
                 }
                 else {
