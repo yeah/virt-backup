@@ -200,7 +200,7 @@ if (! -d $opts{backupdir} ){
 
 # Lockdir, if defined, must also exist
 if ($opts{lockdir} ne '' && !-d $opts{lockdir}){
-    print "$opts{lockdir} is not a valid directory\n";
+    print "$opts{lockdir} doesn't exist\n";
     exit 1;
 }
 
