@@ -287,6 +287,9 @@ sub prepare_backup{
     # Stop here if the lock file is present, another dump might be running
     die "Another backup is running\n" if ( -e "$lockdir/$vm.lock" );
 
+    # Reset disks list
+    @disks = ();
+
     # Lock VM: Create a lock file so only one dump process can run
     lock_vm();
 
