@@ -106,6 +106,7 @@ GetOptions(
     "state"              => \$opts{state},
     "snapsize=s"         => \$opts{snapsize},
     "backupdir=s"        => \$opts{backupdir},
+    "backupcmd=s"        => \$opts{backupcmd},
     "lockdir=s"          => \$opts{lockdir},
     "lvm=s"              => \$opts{lvm},
     "vm=s"               => \@vms,
@@ -448,8 +449,14 @@ sub prepare_backup{
         if ($opts{action} eq 'dump'){
             print "\n\nThe following disks will be dumped:\n\n";
             foreach $disk (@disks){
-                print "Source: $disk->{source}\tDest: $backupdir/$vm" . '_' . $disk->{target} .
-                    ".img$opts{compext}\n";
+                if($opts{backupcmd}){
+                    print "Source: $disk->{source}\tBackup command: $opts{backupcmd}\n";
+                }
+                else {
+                    print "Source: $disk->{source}\tDest: $backupdir/$vm" . '_' . $disk->{target} .
+                        ".img$opts{compext}\n";
+                }
+
             }
         }
         elsif ($opts{action} eq 'convert'){
@@ -514,8 +521,19 @@ sub run_dump{
                 if ($opts{debug} && $opts{compress} ne 'none')
         }
         else {
-            print "\nStarting dump of $source to $dest\n\n" if ($opts{debug});
-            $cmd = "$opts{ionice} dd if=$source bs=$opts{blocksize} | $opts{nice} $opts{compcmd} > $dest 2>/dev/null";
+            if ($opts{backupcmd}){
+                my $backupcmd = $opts{backupcmd};
+                $backupcmd =~ s/{{VIRT_BACKUP_VM}}/$vm/g;
+                $backupcmd =~ s/{{VIRT_BACKUP_DISK}}/$disk->{target}/g;
+                print "\nStarting dump of $source to command: $backupcmd\n\n" if ($opts{debug});
+                $cmd = "$opts{ionice} dd if=$source bs=$opts{blocksize} 2>/dev/null | $opts{nice} $opts{compcmd}";
+                $cmd .= " | { $backupcmd; } > $dest.log 2>&1";
+            }
+            else{
+                print "\nStarting dump of $source to $dest\n\n" if ($opts{debug});
+                $cmd = "$opts{ionice} dd if=$source bs=$opts{blocksize} | $opts{nice} $opts{compcmd} > $dest 2>/dev/null";
+            }
+
         }
         unless( system("$cmd") == 0 ){
             die "Couldn't dump or convert $source to $dest\n";
@@ -644,8 +662,8 @@ sub run_cleanup{
 # Print help 
 sub usage{
     print "usage:\n$0 --action=[dump|cleanup|chunkmount|unlock] --vm=vm1[,vm2,vm3] [--debug] [--exclude=hda,hdb] [--compress] ".
-        "[--state] [--shutdown] [--shutdown-timeout] [--no-offline] [--no-snapshot] [--snapsize=<size>] [--backupdir=/path/to/dir] [--connect=<URI>] ".
-        "[--keep-lock] [--blocksize=<block size>]\n" .
+        "[--state] [--shutdown] [--shutdown-timeout] [--no-offline] [--no-snapshot] [--snapsize=<size>] [--backupdir=/path/to/dir] ".
+        "[--backupcmd=<command>] [--connect=<URI>] [--keep-lock] [--blocksize=<block size>]\n" .
     "\n\n" .
     "\t--action: What action the script will run. Valid actions are\n\n" .
     "\t\t- dump: Run the dump routine (dump disk image to temp dir, pausing the VM if needed). It's the default action\n" .
@@ -683,6 +701,10 @@ sub usage{
         "disk of a VM, but not the data one which can be backed up separatly, at the files level.\n\n" .
     "\t--backupdir=/path/to/backup: Use an alternate backup dir. The directory must exists and be writable. " .
         "The default is /var/lib/libvirt/backup\n\n" .
+    "\t--backupcmd=<command>: Do not store backup on disk, but redirect the output to a custom command instead. " .
+        "This lets you use your favorite backup script/software accepting backup data on STDIN. The variables " .
+        "{{VIRT_BACKUP_VM}} and {{VIRT_BACKUP_DISK}} will be substituted by the names of the current vm and disk. " .
+        "Disabled by default.\n\n" .
     "\t--lockdir=/path/to/locks: Use an alternate lock dir. The directory must exists and be writable. " .
         "The default is to put locks in the backup diretory, but you might want it elsewhere (on a shared storage for example)\n\n" .
     "\t--connect=<URI>: URI to connect to libvirt daemon (to suspend, resume, save, restore VM etc...). " .
